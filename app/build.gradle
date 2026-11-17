@@ -1,0 +1,40 @@
+plugins { id 'com.android.application' }
+
+def releaseStorePath = System.getenv('ANDROID_KEYSTORE_PATH')
+def hasReleaseSigning = releaseStorePath != null &&
+        System.getenv('ANDROID_KEYSTORE_PASSWORD') != null &&
+        System.getenv('ANDROID_KEY_ALIAS') != null &&
+        System.getenv('ANDROID_KEY_PASSWORD') != null
+
+android {
+    namespace 'com.taungthar.yieldcalculator'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.taungtharyieldcalculator'
+        minSdk 23
+        targetSdk 36
+        versionCode 6
+        versionName '1.5'
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseStorePath)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled false
+        }
+    }
+}
