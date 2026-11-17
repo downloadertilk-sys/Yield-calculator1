@@ -24,45 +24,83 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Gradle 8.13
+      - name: Set up Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.13'
+          gradle-version: '8.7'
 
       - name: Find and extract Android project ZIP
+        shell: bash
         run: |
-          ZIP_FILE="TaungThuEain_CropYield_Project_KoSai_v2.zip"
+          set -e
 
-          if [ ! -f "$ZIP_FILE" ]; then
-            echo "ERROR: Project ZIP not found: $ZIP_FILE"
-            echo "ZIP files in repository:"
-            find . -maxdepth 2 -type f -iname "*.zip"
+          echo "Searching for Android project ZIP..."
+
+          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "*.zip" \
+            ! -path "./.git/*" | head -n 1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: No ZIP file found in repository."
             exit 1
           fi
 
-          mkdir -p android_project
-          unzip -q "$ZIP_FILE" -d android_project
+          echo "Found ZIP: $ZIP_FILE"
 
-          echo "Checking extracted project..."
-          ls -la android_project
+          mkdir -p "$RUNNER_TEMP/kosai_project"
+          unzip -q "$ZIP_FILE" -d "$RUNNER_TEMP/kosai_project"
 
-          test -f android_project/settings.gradle
-          test -f android_project/build.gradle
-          test -f android_project/app/build.gradle
-          test -f android_project/app/src/main/AndroidManifest.xml
-          test -f android_project/app/src/main/assets/index.html
+          echo "Searching for Gradle project..."
 
-          echo "ZIP extraction and project check successful."
+          PROJECT_DIR=""
+
+          while IFS= read -r -d '' SETTINGS; do
+            DIR=$(dirname "$SETTINGS")
+
+            if [ -f "$DIR/app/build.gradle" ] || \
+               [ -f "$DIR/app/build.gradle.kts" ]; then
+              PROJECT_DIR="$DIR"
+              break
+            fi
+          done < <(find "$RUNNER_TEMP/kosai_project" \
+            -type f \( -name "settings.gradle" \
+            -o -name "settings.gradle.kts" \) -print0)
+
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "ERROR: Android Gradle project not found in ZIP."
+            echo "ZIP contents:"
+            find "$RUNNER_TEMP/kosai_project" -maxdepth 4 -type f
+            exit 1
+          fi
+
+          echo "Android project found: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Check Android project
+        shell: bash
+        run: |
+          set -e
+          cd "$PROJECT_DIR"
+
+          test -f app/build.gradle || \
+          test -f app/build.gradle.kts
+
+          test -f app/src/main/AndroidManifest.xml
+
+          echo "Android project structure OK"
 
       - name: Build Debug APK
+        shell: bash
         run: |
-          gradle --no-daemon --stacktrace \
-            -p android_project \
-            :app:assembleDebug
+          set -e
+          cd "$PROJECT_DIR"
+
+          gradle --no-daemon assembleDebug
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: TaungThuEain-CropYield-APK
-          path: android_project/app/build/outputs/apk/debug/*.apk
+          name: KoSai-CropYield-Calculator-APK
+          path: |
+            ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+          retention-days: 14
