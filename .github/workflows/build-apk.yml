@@ -1,5 +1,5 @@
 
-name: Build TaungThuEain Crop Yield Calculator APK
+name: Build TaungThuEain APK From ZIP
 
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Java 17
@@ -29,23 +29,40 @@ jobs:
         with:
           gradle-version: '8.13'
 
-      - name: Check Android project structure
+      - name: Find and extract Android project ZIP
         run: |
-          echo "Checking project structure..."
-          test -f settings.gradle
-          test -f build.gradle
-          test -f app/build.gradle
-          test -f app/src/main/AndroidManifest.xml
-          test -f app/src/main/assets/index.html
-          echo "Project structure OK"
+          ZIP_FILE="TaungThuEain_CropYield_Project_KoSai_v2.zip"
+
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "ERROR: Project ZIP not found: $ZIP_FILE"
+            echo "ZIP files in repository:"
+            find . -maxdepth 2 -type f -iname "*.zip"
+            exit 1
+          fi
+
+          mkdir -p android_project
+          unzip -q "$ZIP_FILE" -d android_project
+
+          echo "Checking extracted project..."
+          ls -la android_project
+
+          test -f android_project/settings.gradle
+          test -f android_project/build.gradle
+          test -f android_project/app/build.gradle
+          test -f android_project/app/src/main/AndroidManifest.xml
+          test -f android_project/app/src/main/assets/index.html
+
+          echo "ZIP extraction and project check successful."
 
       - name: Build Debug APK
         run: |
-          gradle --no-daemon --stacktrace :app:assembleDebug
+          gradle --no-daemon --stacktrace \
+            -p android_project \
+            :app:assembleDebug
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: TaungThuEain-CropYield-APK
-          path: app/build/outputs/apk/debug/*.apk
+          path: android_project/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
