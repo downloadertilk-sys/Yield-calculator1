@@ -1,10 +1,11 @@
 
-name: Build Android APK and Play Store AAB
+name: Build TaungThuEain Crop Yield Calculator APK
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -12,6 +13,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -24,43 +26,27 @@ jobs:
 
       - name: Set up Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.13'
 
-      - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
-
-      - name: Build signed release APK and AAB when signing secrets exist
-        id: signing
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          ANDROID_KEYSTORE_PATH: app/release-key.jks
+      - name: Check Android project structure
         run: |
-          if [ -n "$ANDROID_KEYSTORE_BASE64" ] && [ -n "$ANDROID_KEYSTORE_PASSWORD" ] && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
-            gradle --no-daemon assembleRelease bundleRelease
-            echo "signed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "Signing secrets မရှိသေးသောကြောင့် Debug APK သာ ထုတ်ပေးပါမည်။"
-          fi
+          echo "Checking Android project..."
+          ls -la
+          echo "Checking app folder..."
+          ls -la app
+          test -f settings.gradle
+          test -f build.gradle
+          test -f app/build.gradle
+          test -f app/src/main/AndroidManifest.xml
+          test -f app/src/main/assets/index.html
+          echo "All required files found."
 
-      - name: Upload debug APK
+      - name: Build Debug APK
+        run: |
+          gradle --no-daemon --stacktrace :app:assembleDebug
+
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: TaungThuEain-CropYield-debug-APK
+          name: TaungThuEain-CropYield-APK
           path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-
-      - name: Upload signed release APK and AAB
-        if: steps.signing.outputs.signed == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: TaungThuEain-CropYield-release
-          path: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
